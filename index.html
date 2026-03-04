@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>裁剪 + 压缩 一体工具</title>
+<style>
+  body{margin:0;background:#ffffff;color:#333;font-family:Arial}
+  .container{max-width:500px;margin:20px auto;padding:0 10px}
+  .upload{text-align:center;padding:30px;border:2px dashed #ccc;border-radius:8px;cursor:pointer;background:#f9f9f9;margin-bottom:15px}
+  #preview{display:block;margin:20px auto;max-width:100%;border:1px solid #ddd}
+  .btns{text-align:center;margin:15px 0}
+  button{padding:10px 20px;margin:0 5px;border:none;border-radius:6px;background:#007aff;color:#fff;font-size:16px;cursor:pointer}
+  #toggleTool{background:#34c759}
+  #toggleSize{background:#007aff}
+  #actionBtn{background:#ff3b30}
+  #download{display:none}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="upload" id="upload">点击上传图片</div>
+  <input type="file" id="file" accept="image/*" style="display:none">
+
+  <div class="btns">
+    <button id="toggleTool">切换到：图片压缩</button>
+    <button id="toggleSize">切换 900×1400</button>
+    <button id="actionBtn">裁剪</button>
+    <button id="download">下载</button>
+  </div>
+
+  <img id="preview">
+</div>
+
+<script>
+const file = document.getElementById('file')
+const upload = document.getElementById('upload')
+const preview = document.getElementById('preview')
+const toggleToolBtn = document.getElementById('toggleTool')
+const toggleSizeBtn = document.getElementById('toggleSize')
+const actionBtn = document.getElementById('actionBtn')
+const downloadBtn = document.getElementById('download')
+
+// 模式：crop 或 compress
+let mode = 'crop'
+let W = 450
+let H = 700
+
+let img = new Image()
+let canvas = document.createElement('canvas')
+let ctx = canvas.getContext('2d')
+let originalFile = null
+let resultUrl = ''
+
+// 切换工具：裁剪 ↔ 压缩
+toggleToolBtn.onclick = () => {
+  if (mode === 'crop') {
+    mode = 'compress'
+    toggleToolBtn.innerText = '切换到：图片裁剪'
+    actionBtn.innerText = '压缩'
+    toggleSizeBtn.style.display = 'none'
+  } else {
+    mode = 'crop'
+    toggleToolBtn.innerText = '切换到：图片压缩'
+    actionBtn.innerText = '裁剪'
+    toggleSizeBtn.style.display = 'inline-block'
+  }
+  downloadBtn.style.display = 'none'
+}
+
+// 切换裁剪尺寸
+toggleSizeBtn.onclick = () => {
+  if (W === 450) {
+    W = 900
+    H = 1400
+    toggleSizeBtn.innerText = '切换 450×700'
+  } else {
+    W = 450
+    H = 700
+    toggleSizeBtn.innerText = '切换 900×1400'
+  }
+}
+
+// 上传图片
+upload.onclick = () => file.click()
+file.onchange = e => {
+  const f = e.target.files[0]
+  if(!f) return
+  originalFile = f
+  const reader = new FileReader()
+  reader.onload = ev => {
+    img.src = ev.target.result
+    img.onload = () => {
+      preview.src = img.src
+      downloadBtn.style.display = 'none'
+    }
+  }
+  reader.readAsDataURL(f)
+}
+
+// 主按钮：裁剪 / 压缩
+actionBtn.onclick = () => {
+  if (!img.src) return alert('先上传图片')
+  
+  if (mode === 'crop') {
+    // 裁剪逻辑
+    canvas.width = W
+    canvas.height = H
+    const scale = Math.max(W/img.width, H/img.height)
+    const x = (img.width*scale - W)/2
+    const y = (img.height*scale - H)/2
+    ctx.drawImage(img, -x, -y, img.width*scale, img.height*scale)
+    resultUrl = canvas.toDataURL('image/png')
+  } else {
+    // 压缩逻辑：不改变尺寸
+    canvas.width = img.width
+    canvas.height = img.height
+    ctx.drawImage(img, 0, 0)
+    resultUrl = canvas.toDataURL('image/jpeg', 0.8)
+  }
+  
+  preview.src = resultUrl
+  downloadBtn.style.display = 'inline-block'
+}
+
+// 下载
+downloadBtn.onclick = () => {
+  const a = document.createElement('a')
+  if (mode === 'crop') {
+    a.download = `crop_${W}x${H}.png`
+  } else {
+    a.download = `compressed_${new Date().getTime()}.jpg`
+  }
+  a.href = resultUrl
+  a.click()
+}
+</script>
+</body>
+</html>
