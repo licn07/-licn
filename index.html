@@ -2,67 +2,52 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>裁剪 + 压缩 一体工具</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>裁剪压缩工具（可缩放框·无遮罩·9:14）</title>
 <style>
-  body{margin:0;background:#ffffff;color:#333;font-family:Arial}
+  body{margin:0;background:#fff;color:#333;font-family:Arial}
   .container{max-width:500px;margin:20px auto;padding:0 10px}
   
   .upload{
-    text-align:center;
-    padding:30px;
-    border:2px dashed #ccc;
-    border-radius:16px; /* 圆角 */
-    cursor:pointer;
-    background:#f9f9f9;
-    margin-bottom:15px;
-    transition:0.2s;
+    text-align:center;padding:30px;border:2px dashed #ccc;
+    border-radius:16px;cursor:pointer;background:#f9f9f9;margin-bottom:15px
   }
-  .upload:hover{
-    background:#f2f2f2;
-  }
-
   #preview{
-    display:block;
-    margin:20px auto;
-    max-width:70%; /* 图片变小 */
-    max-height:350px;
-    border:1px solid #eee;
-    border-radius:12px;
-    box-shadow:0 2px 8px rgba(0,0,0,0.08);
+    display:block;margin:20px auto;max-width:70%;max-height:350px;
+    border:1px solid #eee;border-radius:12px;
+    box-shadow:0 2px 8px rgba(0,0,0,0.08)
   }
-
   .btns{
-    text-align:center;
-    margin:18px 0;
-    display:flex;
-    flex-wrap:wrap;
-    gap:10px;
-    justify-content:center;
+    text-align:center;margin:18px 0;display:flex;flex-wrap:wrap;
+    gap:10px;justify-content:center
   }
-
   button{
-    padding:11px 20px;
-    border:none;
-    border-radius:20px; /* 大圆角 */
-    color:#fff;
-    font-size:15px;
-    cursor:pointer;
-    transition:0.2s;
-    font-weight:500;
+    padding:11px 20px;border:none;border-radius:20px;
+    color:#fff;font-size:15px;cursor:pointer;transition:0.2s
   }
-  button:hover{
-    opacity:0.9;
-    transform:scale(0.97);
-  }
+  button:hover{opacity:0.9}
 
   #toggleTool{background:#34c759}
   #toggleSize{background:#007aff}
   #actionBtn{background:#ff3b30}
   #cropCompressBtn{background:#ff9500}
-  #download{
-    display:none;
-    background:#007aff;
+  #download{display:none;background:#007aff}
+
+  .crop-wrap{
+    position:relative;margin:20px auto;width:100%;display:none;
+  }
+  #cropImg{
+    width:100%;display:block;user-select:none
+  }
+  #cropMask{
+    position:absolute;top:0;left:0;right:0;bottom:0;
+    user-select:none;
+    touch-action:none;
+  }
+  #cropBox{
+    position:absolute;
+    border:2px solid #fff;
+    user-select:none;
   }
 </style>
 </head>
@@ -79,6 +64,11 @@
     <button id="download">下载</button>
   </div>
 
+  <div class="crop-wrap" id="cropWrap">
+    <img id="cropImg">
+    <div id="cropMask"><div id="cropBox"></div></div>
+  </div>
+
   <img id="preview">
 </div>
 
@@ -92,111 +82,241 @@ const actionBtn = document.getElementById('actionBtn')
 const cropCompressBtn = document.getElementById('cropCompressBtn')
 const downloadBtn = document.getElementById('download')
 
-// 模式：crop 或 compress
-let mode = 'crop'
-let W = 450
-let H = 700
+const cropWrap = document.getElementById('cropWrap')
+const cropImg = document.getElementById('cropImg')
+const cropMask = document.getElementById('cropMask')
+const cropBox = document.getElementById('cropBox')
 
+let mode = 'crop'
+let W = 450, H = 700
 let img = new Image()
 let canvas = document.createElement('canvas')
 let ctx = canvas.getContext('2d')
-let originalFile = null
 let resultUrl = ''
 
-// 切换工具：裁剪 ↔ 压缩
+let cropRect = { x: 0, y: 0, w: 0, h: 0 }
+let startX, startY, isMove = false
+let lastDist = 0
+const RATIO = 9 / 14
+
 toggleToolBtn.onclick = () => {
   if (mode === 'crop') {
     mode = 'compress'
     toggleToolBtn.innerText = '切换到：图片裁剪'
     actionBtn.innerText = '压缩'
     toggleSizeBtn.style.display = 'none'
+    cropWrap.style.display = 'none'
   } else {
     mode = 'crop'
     toggleToolBtn.innerText = '切换到：图片压缩'
     actionBtn.innerText = '裁剪'
     toggleSizeBtn.style.display = 'inline-block'
+    if(img.src) cropWrap.style.display = 'block'
   }
   downloadBtn.style.display = 'none'
 }
 
-// 切换裁剪尺寸
 toggleSizeBtn.onclick = () => {
   if (W === 450) {
-    W = 900
-    H = 1400
+    W = 900; H = 1400
     toggleSizeBtn.innerText = '切换 450×700'
   } else {
-    W = 450
-    H = 700
+    W = 450; H = 700
     toggleSizeBtn.innerText = '切换 900×1400'
   }
 }
 
-// 上传图片
 upload.onclick = () => file.click()
 file.onchange = e => {
   const f = e.target.files[0]
   if(!f) return
-  originalFile = f
   const reader = new FileReader()
   reader.onload = ev => {
     img.src = ev.target.result
     img.onload = () => {
       preview.src = img.src
+      cropImg.src = img.src
+      cropWrap.style.display = mode === 'crop' ? 'block' : 'none'
+      initCropBox()
       downloadBtn.style.display = 'none'
     }
   }
   reader.readAsDataURL(f)
 }
 
-// 主按钮：裁剪 / 压缩
+function initCropBox(){
+  const wrapW = cropMask.clientWidth
+  const wrapH = cropMask.clientHeight
+
+  let w = wrapW * 0.7
+  let h = w / RATIO
+
+  if (h > wrapH * 0.9) {
+    h = wrapH * 0.9
+    w = h * RATIO
+  }
+
+  cropRect.w = w
+  cropRect.h = h
+  cropRect.x = (wrapW - w)/2
+  cropRect.y = (wrapH - h)/2
+
+  updateCropBox()
+}
+
+function updateCropBox(){
+  cropBox.style.left = cropRect.x + 'px'
+  cropBox.style.top = cropRect.y + 'px'
+  cropBox.style.width = cropRect.w + 'px'
+  cropBox.style.height = cropRect.h + 'px'
+}
+
+function clampRect(){
+  const wrapW = cropMask.clientWidth
+  const wrapH = cropMask.clientHeight
+
+  if (cropRect.w > wrapW) cropRect.w = wrapW
+  if (cropRect.h > wrapH) cropRect.h = wrapH
+
+  cropRect.x = Math.max(0, Math.min(cropRect.x, wrapW - cropRect.w))
+  cropRect.y = Math.max(0, Math.min(cropRect.y, wrapH - cropRect.h))
+}
+
+// 单指移动
+function startDrag(e){
+  e.preventDefault()
+  isMove = true
+  const p = getPos(e)
+  startX = p.x - cropRect.x
+  startY = p.y - cropRect.y
+}
+
+function dragMove(e){
+  if(!isMove) return
+  e.preventDefault()
+  const p = getPos(e)
+  cropRect.x = p.x - startX
+  cropRect.y = p.y - startY
+  clampRect()
+  updateCropBox()
+}
+
+// 双指缩放
+function getPinchDist(e){
+  const t = e.touches
+  const dx = t[0].clientX - t[1].clientX
+  const dy = t[0].clientY - t[1].clientY
+  return Math.sqrt(dx*dx + dy*dy)
+}
+
+function startPinch(e){
+  e.preventDefault()
+  lastDist = getPinchDist(e)
+}
+
+function pinchMove(e){
+  e.preventDefault()
+  const dist = getPinchDist(e)
+  const scale = dist / lastDist
+  lastDist = dist
+
+  const wrapW = cropMask.clientWidth
+  const wrapH = cropMask.clientHeight
+
+  let newW = cropRect.w * scale
+  let newH = newW / RATIO
+
+  if (newW < 60) newW = 60
+  if (newH < 60) newH = 60
+  if (newW > wrapW) newW = wrapW
+  if (newH > wrapH) newH = wrapH
+
+  const cx = cropRect.x + cropRect.w/2
+  const cy = cropRect.y + cropRect.h/2
+
+  cropRect.w = newW
+  cropRect.h = newH
+  cropRect.x = cx - newW/2
+  cropRect.y = cy - newH/2
+
+  clampRect()
+  updateCropBox()
+}
+
+function getPos(e){
+  if(e.type.includes('mouse')){
+    return {x:e.clientX, y:e.clientY}
+  }else{
+    return {x:e.touches[0].clientX, y:e.touches[0].clientY}
+  }
+}
+
+cropMask.addEventListener('mousedown', startDrag)
+cropMask.addEventListener('touchstart', (e)=>{
+  if(e.touches.length === 1) startDrag(e)
+  else startPinch(e)
+})
+
+document.addEventListener('mousemove', dragMove)
+document.addEventListener('touchmove', (e)=>{
+  if(e.touches.length === 1) dragMove(e)
+  else pinchMove(e)
+})
+
+document.addEventListener('mouseup', ()=> isMove=false)
+document.addEventListener('touchend', ()=> isMove=false)
+
 actionBtn.onclick = () => {
   if (!img.src) return alert('先上传图片')
-  
-  if (mode === 'crop') {
-    // 裁剪逻辑
-    canvas.width = W
-    canvas.height = H
-    const scale = Math.max(W/img.width, H/img.height)
-    const x = (img.width*scale - W)/2
-    const y = (img.height*scale - H)/2
-    ctx.drawImage(img, -x, -y, img.width*scale, img.height*scale)
-    resultUrl = canvas.toDataURL('image/png')
-  } else {
-    // 压缩逻辑：不改变尺寸
-    canvas.width = img.width
-    canvas.height = img.height
-    ctx.drawImage(img, 0, 0)
-    resultUrl = canvas.toDataURL('image/jpeg', 0.8)
-  }
-  
-  preview.src = resultUrl
+  if(mode === 'crop') doCrop()
+  else doCompress()
   downloadBtn.style.display = 'inline-block'
 }
 
-// 压缩并且裁切
-cropCompressBtn.onclick = () => {
-  if (!img.src) return alert('先上传图片')
+function doCrop(){
+  const scale = img.width / cropImg.clientWidth
+  const sx = cropRect.x * scale
+  const sy = cropRect.y * scale
+  const sw = cropRect.w * scale
+  const sh = cropRect.h * scale
+
   canvas.width = W
   canvas.height = H
-  const scale = Math.max(W/img.width, H/img.height)
-  const x = (img.width*scale - W)/2
-  const y = (img.height*scale - H)/2
-  ctx.drawImage(img, -x, -y, img.width*scale, img.height*scale)
-  resultUrl = canvas.toDataURL('image/jpeg', 0.8)
+  ctx.drawImage(img, sx, sy, sw, sh, 0,0, W,H)
+  resultUrl = canvas.toDataURL('image/png')
+  preview.src = resultUrl
+}
+
+function doCompress(){
+  canvas.width = img.width
+  canvas.height = img.height
+  ctx.drawImage(img,0,0)
+  resultUrl = canvas.toDataURL('image/jpeg', 0.7)
+  preview.src = resultUrl
+}
+
+cropCompressBtn.onclick = () => {
+  if (!img.src) return alert('先上传图片')
+  const scale = img.width / cropImg.clientWidth
+  const sx = cropRect.x * scale
+  const sy = cropRect.y * scale
+  const sw = cropRect.w * scale
+  const sh = cropRect.h * scale
+
+  canvas.width = W
+  canvas.height = H
+  ctx.drawImage(img, sx,sy,sw,sh, 0,0,W,H)
+  resultUrl = canvas.toDataURL('image/jpeg', 0.7)
   
   preview.src = resultUrl
   downloadBtn.style.display = 'inline-block'
 }
 
-// 下载
 downloadBtn.onclick = () => {
   const a = document.createElement('a')
-  if (mode === 'crop') {
-    a.download = `crop_${W}x${H}.png`
-  } else {
-    a.download = `compressed_${new Date().getTime()}.jpg`
-  }
+  a.download = mode === 'crop' 
+    ? `crop_${W}x${H}.png` 
+    : `compressed.jpg`
   a.href = resultUrl
   a.click()
 }
