@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>裁剪压缩工具（可缩放框·无遮罩·9:14）</title>
+<title>裁剪压缩工具（框贴合+自动裁剪）</title>
 <style>
   body{margin:0;background:#fff;color:#333;font-family:Arial}
   .container{max-width:500px;margin:20px auto;padding:0 10px}
@@ -13,17 +13,17 @@
     border-radius:16px;cursor:pointer;background:#f9f9f9;margin-bottom:15px
   }
   #preview{
-    display:block;margin:20px auto;max-width:70%;max-height:350px;
+    display:block;margin:10px auto;max-width:50%;max-height:180px;
     border:1px solid #eee;border-radius:12px;
     box-shadow:0 2px 8px rgba(0,0,0,0.08)
   }
   .btns{
-    text-align:center;margin:18px 0;display:flex;flex-wrap:wrap;
-    gap:10px;justify-content:center
+    text-align:center;margin:10px 0;display:flex;flex-wrap:wrap;
+    gap:8px;justify-content:center
   }
   button{
-    padding:11px 20px;border:none;border-radius:20px;
-    color:#fff;font-size:15px;cursor:pointer;transition:0.2s
+    padding:8px 16px;border:none;border-radius:20px;
+    color:#fff;font-size:14px;cursor:pointer;transition:0.2s
   }
   button:hover{opacity:0.9}
 
@@ -31,10 +31,19 @@
   #toggleSize{background:#007aff}
   #actionBtn{background:#ff3b30}
   #cropCompressBtn{background:#ff9500}
+  #autoCropBtn{background:#ff6b00}
   #download{display:none;background:#007aff}
 
+  .tip-text{
+    text-align:center;
+    font-size:13px;
+    color:#666;
+    margin:8px 0;
+    line-height:1.4;
+  }
+
   .crop-wrap{
-    position:relative;margin:20px auto;width:100%;display:none;
+    position:relative;margin:10px auto;width:100%;display:none;
   }
   #cropImg{
     width:100%;display:block;user-select:none
@@ -49,19 +58,99 @@
     border:2px solid #fff;
     user-select:none;
   }
+
+  /* 访问次数弹窗样式 */
+  .visit-modal{
+    position:fixed;
+    top:0;left:0;right:0;bottom:0;
+    background:rgba(0,0,0,0.5);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    z-index:9999;
+    opacity:1;
+    transition:opacity 0.5s;
+  }
+  .visit-modal.hide{
+    opacity:0;
+    pointer-events:none;
+  }
+  .visit-content{
+    background:#fff;
+    padding:20px 30px;
+    border-radius:16px;
+    text-align:center;
+    font-size:16px;
+    color:#333;
+    box-shadow:0 4px 12px rgba(0,0,0,0.15);
+  }
+
+  /* 尺寸选择弹窗 */
+  .size-modal{
+    position:fixed;
+    top:0;left:0;right:0;bottom:0;
+    background:rgba(0,0,0,0.5);
+    display:none;
+    align-items:center;
+    justify-content:center;
+    z-index:9999;
+  }
+  .size-content{
+    background:#fff;
+    padding:20px;
+    border-radius:16px;
+    text-align:center;
+    width:80%;
+    max-width:300px;
+  }
+  .size-option{
+    padding:12px;
+    margin:8px 0;
+    background:#f5f5f5;
+    border-radius:12px;
+    cursor:pointer;
+    transition:0.2s;
+  }
+  .size-option:hover{
+    background:#e5e5e5;
+  }
+  .size-option.active{
+    background:#007aff;
+    color:#fff;
+  }
 </style>
 </head>
 <body>
+<!-- 访问次数弹窗 -->
+<div class="visit-modal" id="visitModal">
+  <div class="visit-content" id="visitText"></div>
+</div>
+
+<!-- 尺寸选择弹窗 -->
+<div class="size-modal" id="sizeModal">
+  <div class="size-content">
+    <h3 style="margin:0 0 15px 0">选择输出尺寸</h3>
+    <div class="size-option" data-w="180" data-h="280">180 × 280</div>
+    <div class="size-option" data-w="450" data-h="700">450 × 700</div>
+    <div class="size-option" data-w="900" data-h="1400">900 × 1400</div>
+  </div>
+</div>
+
 <div class="container">
   <div class="upload" id="upload">点击上传图片</div>
   <input type="file" id="file" accept="image/*" style="display:none">
 
   <div class="btns">
     <button id="toggleTool">切换到：图片压缩</button>
-    <button id="toggleSize">切换 900×1400</button>
+    <button id="toggleSize">选择尺寸</button>
     <button id="actionBtn">裁剪</button>
     <button id="cropCompressBtn">压缩并且裁切</button>
+    <button id="autoCropBtn">自动裁剪</button>
     <button id="download">下载</button>
+  </div>
+
+  <div class="tip-text">
+    请把图片剪辑成 9:16 再使用本工具比较合适。
   </div>
 
   <div class="crop-wrap" id="cropWrap">
@@ -73,6 +162,28 @@
 </div>
 
 <script>
+// ========== 访问次数统计逻辑 ==========
+function showVisitModal() {
+  const modal = document.getElementById('visitModal')
+  const text = document.getElementById('visitText')
+  let count = parseInt(localStorage.getItem('visitCount') || '0')
+  count++
+  localStorage.setItem('visitCount', count.toString())
+  text.innerText = `你已是第 ${count} 次访问本网站。`
+  modal.classList.remove('hide')
+  setTimeout(() => {
+    modal.classList.add('hide')
+  }, 2000) // 2秒后自动消失
+}
+
+// 页面加载完成后显示弹窗
+window.addEventListener('load', showVisitModal)
+
+// ========== 尺寸选择弹窗逻辑 ==========
+const sizeModal = document.getElementById('sizeModal')
+const sizeOptions = document.querySelectorAll('.size-option')
+
+// ========== 原有工具逻辑 ==========
 const file = document.getElementById('file')
 const upload = document.getElementById('upload')
 const preview = document.getElementById('preview')
@@ -80,6 +191,7 @@ const toggleToolBtn = document.getElementById('toggleTool')
 const toggleSizeBtn = document.getElementById('toggleSize')
 const actionBtn = document.getElementById('actionBtn')
 const cropCompressBtn = document.getElementById('cropCompressBtn')
+const autoCropBtn = document.getElementById('autoCropBtn')
 const downloadBtn = document.getElementById('download')
 
 const cropWrap = document.getElementById('cropWrap')
@@ -105,25 +217,45 @@ toggleToolBtn.onclick = () => {
     toggleToolBtn.innerText = '切换到：图片裁剪'
     actionBtn.innerText = '压缩'
     toggleSizeBtn.style.display = 'none'
+    autoCropBtn.style.display = 'none'
     cropWrap.style.display = 'none'
   } else {
     mode = 'crop'
     toggleToolBtn.innerText = '切换到：图片压缩'
     actionBtn.innerText = '裁剪'
     toggleSizeBtn.style.display = 'inline-block'
+    autoCropBtn.style.display = 'inline-block'
     if(img.src) cropWrap.style.display = 'block'
   }
   downloadBtn.style.display = 'none'
 }
 
+// 打开尺寸弹窗
 toggleSizeBtn.onclick = () => {
-  if (W === 450) {
-    W = 900; H = 1400
-    toggleSizeBtn.innerText = '切换 450×700'
-  } else {
-    W = 450; H = 700
-    toggleSizeBtn.innerText = '切换 900×1400'
+  sizeModal.style.display = 'flex'
+  // 高亮当前选中尺寸
+  sizeOptions.forEach(opt => {
+    const w = parseInt(opt.dataset.w)
+    const h = parseInt(opt.dataset.h)
+    if(w === W && h === H) opt.classList.add('active')
+    else opt.classList.remove('active')
+  })
+}
+
+// 点击选项选择尺寸
+sizeOptions.forEach(opt => {
+  opt.onclick = () => {
+    W = parseInt(opt.dataset.w)
+    H = parseInt(opt.dataset.h)
+    toggleSizeBtn.innerText = `${W} × ${H}`
+    sizeModal.style.display = 'none'
+    if(mode === 'crop' && img.src) initCropBox()
   }
+})
+
+// 点击弹窗外部关闭
+sizeModal.onclick = (e) => {
+  if(e.target === sizeModal) sizeModal.style.display = 'none'
 }
 
 upload.onclick = () => file.click()
@@ -310,6 +442,36 @@ cropCompressBtn.onclick = () => {
   
   preview.src = resultUrl
   downloadBtn.style.display = 'inline-block'
+}
+
+// ========== 新增：自动裁剪逻辑 ==========
+autoCropBtn.onclick = () => {
+  if (!img.src) return alert('先上传图片')
+  autoCrop()
+  downloadBtn.style.display = 'inline-block'
+}
+
+function autoCrop() {
+  const imgW = img.width
+  const imgH = img.height
+
+  let cropW, cropH
+  if (imgW / imgH > RATIO) {
+    cropH = imgH
+    cropW = cropH * RATIO
+  } else {
+    cropW = imgW
+    cropH = cropW / RATIO
+  }
+
+  const sx = (imgW - cropW) / 2
+  const sy = (imgH - cropH) / 2
+
+  canvas.width = W
+  canvas.height = H
+  ctx.drawImage(img, sx, sy, cropW, cropH, 0, 0, W, H)
+  resultUrl = canvas.toDataURL('image/jpeg', 0.9)
+  preview.src = resultUrl
 }
 
 downloadBtn.onclick = () => {
