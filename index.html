@@ -59,32 +59,6 @@
     user-select:none;
   }
 
-  /* 访问次数弹窗样式 */
-  .visit-modal{
-    position:fixed;
-    top:0;left:0;right:0;bottom:0;
-    background:rgba(0,0,0,0.5);
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    z-index:9999;
-    opacity:1;
-    transition:opacity 0.5s;
-  }
-  .visit-modal.hide{
-    opacity:0;
-    pointer-events:none;
-  }
-  .visit-content{
-    background:#fff;
-    padding:20px 30px;
-    border-radius:16px;
-    text-align:center;
-    font-size:16px;
-    color:#333;
-    box-shadow:0 4px 12px rgba(0,0,0,0.15);
-  }
-
   /* 尺寸选择弹窗 */
   .size-modal{
     position:fixed;
@@ -121,11 +95,6 @@
 </style>
 </head>
 <body>
-<!-- 访问次数弹窗 -->
-<div class="visit-modal" id="visitModal">
-  <div class="visit-content" id="visitText"></div>
-</div>
-
 <!-- 尺寸选择弹窗 -->
 <div class="size-modal" id="sizeModal">
   <div class="size-content">
@@ -162,23 +131,6 @@
 </div>
 
 <script>
-// ========== 访问次数统计逻辑 ==========
-function showVisitModal() {
-  const modal = document.getElementById('visitModal')
-  const text = document.getElementById('visitText')
-  let count = parseInt(localStorage.getItem('visitCount') || '0')
-  count++
-  localStorage.setItem('visitCount', count.toString())
-  text.innerText = `你已是第 ${count} 次访问本网站。`
-  modal.classList.remove('hide')
-  setTimeout(() => {
-    modal.classList.add('hide')
-  }, 2000) // 2秒后自动消失
-}
-
-// 页面加载完成后显示弹窗
-window.addEventListener('load', showVisitModal)
-
 // ========== 尺寸选择弹窗逻辑 ==========
 const sizeModal = document.getElementById('sizeModal')
 const sizeOptions = document.querySelectorAll('.size-option')
@@ -444,7 +396,7 @@ cropCompressBtn.onclick = () => {
   downloadBtn.style.display = 'inline-block'
 }
 
-// ========== 新增：自动裁剪逻辑 ==========
+// ========== 自动裁剪逻辑 ==========
 autoCropBtn.onclick = () => {
   if (!img.src) return alert('先上传图片')
   autoCrop()
